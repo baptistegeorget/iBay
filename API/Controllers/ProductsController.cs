@@ -1,6 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using API.Models;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
+using static API.Models.User;
 
 namespace API.Controllers
 {
@@ -56,18 +59,38 @@ namespace API.Controllers
                 UserId = product.UserId
             };
 
-            return productResponse;
+            return Ok(productResponse);
         }
 
         // PUT: api/Products/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutProduct(long id, Product product)
+        [Authorize]
+        public async Task<IActionResult> PutProduct(long id, ProductRequest productRequest)
         {
-            if (id != product.Id)
+            var userIdString = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userIdString == null || !long.TryParse(userIdString, out var userId))
             {
-                return BadRequest();
+                return Unauthorized();
             }
+
+            var product = await _context.Products.FindAsync(id);
+
+            if (product == null)
+            {
+                return NotFound();
+            }
+
+            if (product.UserId != userId)
+            {
+                return Unauthorized();
+            }
+
+            product.Name = productRequest.Name;
+            product.Image = productRequest.Image;
+            product.Price = productRequest.Price;
+            product.IsAvailable = productRequest.IsAvailable;
 
             _context.Entry(product).State = EntityState.Modified;
 
@@ -93,25 +116,68 @@ namespace API.Controllers
         // POST: api/Products
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Product>> PostProduct(Product product)
+        [Authorize]
+        public async Task<ActionResult<Product>> PostProduct(ProductRequest productRequest)
         {
+            var userRole = HttpContext.User.FindFirst(ClaimTypes.Role)?.Value;
+
+            var userIdString = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userRole != Roles.Vendor.ToString() || userIdString == null || !long.TryParse(userIdString, out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var user = await _context.Users.FindAsync(userId);
+
+            if (user == null)
+            {
+                return Unauthorized();
+            }
+
+            var product = new Product
+            {
+                Name = productRequest.Name,
+                Image = productRequest.Image,
+                Price = productRequest.Price,
+                IsAvailable = productRequest.IsAvailable,
+                UserId = userId,
+                User = user
+            };
+
             _context.Products.Add(product);
+
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetProduct", new { id = product.Id }, product);
+            return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product); // Fonctionne mais renvoi une boucle d'objet
         }
 
         // DELETE: api/Products/5
         [HttpDelete("{id}")]
+        [Authorize]
         public async Task<IActionResult> DeleteProduct(long id)
         {
+            var userIdString = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (userIdString == null || !long.TryParse(userIdString, out var userId))
+            {
+                return Unauthorized();
+            }
+
             var product = await _context.Products.FindAsync(id);
+
             if (product == null)
             {
                 return NotFound();
             }
 
+            if (product.UserId != userId)
+            {
+                return Unauthorized();
+            }
+
             _context.Products.Remove(product);
+
             await _context.SaveChangesAsync();
 
             return NoContent();

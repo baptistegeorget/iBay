@@ -2,6 +2,8 @@
 using Microsoft.EntityFrameworkCore;
 using API.Models;
 using API.Utils;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace API.Controllers
 {
@@ -52,19 +54,30 @@ namespace API.Controllers
                 Role = user.Role
             };
 
-            return userResponse;
+            return Ok(userResponse);
         }
 
         // PUT: api/Users/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutUser(long id, User user)
+        [Authorize]
+        public async Task<IActionResult> PutUser(long id, UserRequest userRequest)
         {
-
-            if (id != user.Id)
+            var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            
+            if (id.ToString() != userId)
             {
-                return BadRequest();
+                return Unauthorized();
             }
+
+            var user = new User
+            {
+                Id = id,
+                Email = userRequest.Email,
+                Pseudo = userRequest.Pseudo,
+                PasswordHash = Password.Hash(userRequest.Password),
+                Role = userRequest.Role
+            };
 
             _context.Entry(user).State = EntityState.Modified;
 
@@ -104,20 +117,30 @@ namespace API.Controllers
 
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user);
+            return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user); // Fonctionne mais renvoi une boucle d'objet
         }
 
         // DELETE: api/Users/5
         [HttpDelete("{id}")]
+        [Authorize]
         public async Task<IActionResult> DeleteUser(long id)
         {
+            var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (id.ToString() != userId)
+            {
+                return Unauthorized();
+            }
+
             var user = await _context.Users.FindAsync(id);
+
             if (user == null)
             {
                 return NotFound();
             }
 
             _context.Users.Remove(user);
+
             await _context.SaveChangesAsync();
 
             return NoContent();
