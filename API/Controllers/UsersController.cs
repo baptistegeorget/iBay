@@ -117,7 +117,15 @@ namespace API.Controllers
 
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user); // Fonctionne mais renvoi une boucle d'objet
+            var userResponse = new UserResponse
+            {
+                Id = user.Id,
+                Email = user.Email,
+                Pseudo = user.Pseudo,
+                Role = user.Role
+            };
+
+            return CreatedAtAction(nameof(GetUser), new { id = user.Id }, userResponse);
         }
 
         // DELETE: api/Users/5

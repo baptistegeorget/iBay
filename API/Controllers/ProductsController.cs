@@ -149,7 +149,18 @@ namespace API.Controllers
 
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, product); // Fonctionne mais renvoi une boucle d'objet
+            var productResponse = new ProductResponse
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Image = product.Image,
+                Price = product.Price,
+                IsAvailable = product.IsAvailable,
+                CreatedOn = product.CreatedOn,
+                UserId = user.Id
+            };
+
+            return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, productResponse);
         }
 
         // DELETE: api/Products/5
