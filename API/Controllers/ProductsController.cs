@@ -20,9 +20,34 @@ namespace API.Controllers
 
         // GET: api/Products
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<ProductResponse>>> GetProducts()
+        public async Task<ActionResult<IEnumerable<ProductResponse>>> GetProducts(string sortBy = "date", string sortOrder = "desc", int limit = 10, string? query = null)
         {
-            var products = await _context.Products
+            IQueryable<Product> queryable = _context.Products;
+
+            if (!string.IsNullOrEmpty(query))
+            {
+                queryable = queryable.Where(product => product.Name.Contains(query) || product.User.Pseudo.Contains(query));
+            }
+
+            switch (sortBy.ToLower())
+            {
+                case "date":
+                    queryable = sortOrder.ToLower() == "desc" ? queryable.OrderByDescending(product => product.CreatedOn) : queryable.OrderBy(product => product.CreatedOn);
+                    break;
+                case "name":
+                    queryable = sortOrder.ToLower() == "desc" ? queryable.OrderByDescending(product => product.Name) : queryable.OrderBy(product => product.Name);
+                    break;
+                case "price":
+                    queryable = sortOrder.ToLower() == "desc" ? queryable.OrderByDescending(product => product.Price) : queryable.OrderBy(product => product.Price);
+                    break;
+                default:
+                    queryable = sortOrder.ToLower() == "desc" ? queryable.OrderByDescending(product => product.CreatedOn) : queryable.OrderBy(product => product.CreatedOn);
+                    break;
+            }
+
+            queryable = queryable.Take(limit);
+
+            var products = await queryable
                 .Select(product => new ProductResponse
                 {
                     Id = product.Id,
@@ -34,6 +59,7 @@ namespace API.Controllers
                     UserId = product.UserId
                 })
                 .ToListAsync();
+
             return Ok(products);
         }
 
