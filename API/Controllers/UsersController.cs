@@ -200,7 +200,7 @@ namespace API.Controllers
 
         [HttpPost("{id}/Cart")]
         [Authorize]
-        public async Task<ActionResult> AddProductToCart(long id, long productId, int quantity)
+        public async Task<ActionResult> AddProductToCart(long id, long productId, int quantity = 1)
         {
             var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
