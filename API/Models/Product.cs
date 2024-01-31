@@ -10,6 +10,6 @@
         public DateTimeOffset CreatedOn { get; set; } = DateTimeOffset.Now;
         public long UserId { get; set; }
         public required User User { get; set; }
-        public ICollection<Cart> Carts { get; set; } = new List<Cart>();
+        public ICollection<CartProduct> CartProducts { get; set; } = new List<CartProduct>();
     }
 }

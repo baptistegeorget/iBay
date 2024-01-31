@@ -156,7 +156,7 @@ namespace API.Controllers
 
         [HttpGet("{id}/Cart")]
         [Authorize]
-        public async Task<ActionResult<IEnumerable<Product>>> GetCart(long id)
+        public async Task<ActionResult<CartResponse>> GetCart(long id)
         {
             var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -166,8 +166,10 @@ namespace API.Controllers
             }
 
             var user = await _context.Users
-                .Include(u => u.Carts)
-                .FirstOrDefaultAsync(u => u.Id == id);
+                .Include(user => user.Carts)
+                    .ThenInclude(cart => cart.CartProducts)
+                        .ThenInclude(cartProduct => cartProduct.Product)
+                .FirstOrDefaultAsync(user => user.Id == id);
 
             if (user == null)
             {
@@ -185,15 +187,12 @@ namespace API.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            await _context.Entry(nonValidatedCart)
-                .Collection(c => c.Products)
-                .LoadAsync();
-
             var cartResponse = new CartResponse
             {
                 Id = nonValidatedCart.Id,
                 IsValidate = nonValidatedCart.IsValidate,
-                ProductsId = nonValidatedCart.Products.Select(p => p.Id).ToArray()
+                ProductsId = nonValidatedCart.CartProducts.Select(cartProduct => cartProduct.Product.Id).ToArray(),
+                Quantities = nonValidatedCart.CartProducts.ToDictionary(cartProduct => cartProduct.Product.Id, cartProduct => cartProduct.Quantity)
             };
 
             return Ok(cartResponse);
@@ -201,7 +200,7 @@ namespace API.Controllers
 
         [HttpPost("{id}/Cart")]
         [Authorize]
-        public async Task<ActionResult> AddProductToCart(long id, long productId)
+        public async Task<ActionResult> AddProductToCart(long id, long productId, int quantity)
         {
             var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -212,9 +211,9 @@ namespace API.Controllers
 
             var product = await _context.Products.FindAsync(productId);
 
-            if (product == null) 
-            { 
-                return NotFound(); 
+            if (product == null)
+            {
+                return NotFound();
             }
 
             if (!product.IsAvailable)
@@ -223,9 +222,9 @@ namespace API.Controllers
             }
 
             var user = await _context.Users
-                .Include(u => u.Carts)
-                .ThenInclude(c => c.Products)
-                .FirstOrDefaultAsync(u => u.Id == id);
+                .Include(user => user.Carts)
+                    .ThenInclude(cart => cart.CartProducts)
+                .FirstOrDefaultAsync(user => user.Id == id);
 
             if (user == null)
             {
@@ -243,22 +242,127 @@ namespace API.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            nonValidatedCart.Products.Add(product);
+            var existingCartItem = nonValidatedCart.CartProducts.FirstOrDefault(cartProduct => cartProduct.ProductId == product.Id);
 
-            await _context.SaveChangesAsync(); // BUG DE MERDE PANIER PAS MIS A JOUR
+            if (existingCartItem != null)
+            {
+                existingCartItem.Quantity += quantity;
+            }
+            else
+            {
+                nonValidatedCart.CartProducts.Add(new CartProduct { Product = product, Quantity = quantity, Cart = nonValidatedCart });
+            }
 
-            nonValidatedCart = await _context.Carts
-                .Include(c => c.Products)
-                .FirstOrDefaultAsync(c => c.Id == nonValidatedCart.Id);
+            await _context.SaveChangesAsync();
+
+            await _context.Entry(nonValidatedCart)
+                .Collection(cart => cart.CartProducts)
+                .Query()
+                .Include(cartProduct => cartProduct.Product)
+                .LoadAsync();
 
             var cartResponse = new CartResponse
             {
                 Id = nonValidatedCart.Id,
                 IsValidate = nonValidatedCart.IsValidate,
-                ProductsId = nonValidatedCart.Products.Select(p => p.Id).ToArray()
+                ProductsId = nonValidatedCart.CartProducts.Select(cartProduct => cartProduct.Product.Id).ToArray(),
+                Quantities = nonValidatedCart.CartProducts.ToDictionary(cartProduct => cartProduct.Product.Id, cartProduct => cartProduct.Quantity)
             };
 
             return Ok(cartResponse);
+        }
+
+        [HttpDelete("{id}/Cart")]
+        [Authorize]
+        public async Task<ActionResult> RemoveProductFromCart(long id, long productId, int quantity = 1)
+        {
+            var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (id.ToString() != userId)
+            {
+                return Unauthorized();
+            }
+
+            var user = await _context.Users
+                .Include(user => user.Carts)
+                    .ThenInclude(cart => cart.CartProducts)
+                .FirstOrDefaultAsync(user => user.Id == id);
+
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            var nonValidatedCart = user.Carts.FirstOrDefault(cart => !cart.IsValidate);
+
+            if (nonValidatedCart == null)
+            {
+                nonValidatedCart = new Cart { UserId = user.Id, User = user };
+
+                _context.Carts.Add(nonValidatedCart);
+
+                await _context.SaveChangesAsync();
+            }
+
+            var cartProductToRemove = nonValidatedCart.CartProducts.FirstOrDefault(cartProduct => cartProduct.ProductId == productId);
+
+            if (cartProductToRemove == null)
+            {
+                return NotFound();
+            }
+
+            cartProductToRemove.Quantity -= quantity;
+
+            if (cartProductToRemove.Quantity <= 0)
+            {
+                _context.CartProducts.Remove(cartProductToRemove);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        [HttpPost("{id}/Cart/Pay")]
+        [Authorize]
+        public async Task<ActionResult> PayCart(long id)
+        {
+            var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (id.ToString() != userId)
+            {
+                return Unauthorized();
+            }
+
+            var user = await _context.Users
+                .Include(user => user.Carts)
+                    .ThenInclude(cart => cart.CartProducts)
+                        .ThenInclude(cartProduct => cartProduct.Product)
+                .FirstOrDefaultAsync(user => user.Id == id);
+
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            var nonValidatedCart = user.Carts.FirstOrDefault(cart => !cart.IsValidate);
+
+            if (nonValidatedCart == null || nonValidatedCart.CartProducts.Count == 0)
+            {
+                return BadRequest();
+            }
+
+            // Logique de paiement ici...
+
+            nonValidatedCart.IsValidate = true;
+
+            var newCart = new Cart { UserId = user.Id, User = user };
+
+            _context.Carts.Add(newCart);
+
+            await _context.SaveChangesAsync();
+
+            return Ok();
         }
 
         private bool UserExists(long id)

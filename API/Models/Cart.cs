@@ -6,6 +6,6 @@
         public bool IsValidate { get; set; } = false;
         public long UserId { get; set; }
         public required User User { get; set; }
-        public ICollection<Product> Products { get; set; } = new List<Product>();
+        public ICollection<CartProduct> CartProducts { get; set; } = new List<CartProduct>();
     }
 }
