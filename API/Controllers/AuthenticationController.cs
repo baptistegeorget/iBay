@@ -23,7 +23,7 @@ namespace API.Controllers
         }
 
         [HttpPost]
-        public IActionResult Login(Login login)
+        public async Task<ActionResult<string>> Login(Login login)
         {
             var user = _jwtAuthenticationService.Authenticate(_context, login.Email, login.Password);
 

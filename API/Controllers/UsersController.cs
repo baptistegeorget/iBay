@@ -103,7 +103,7 @@ namespace API.Controllers
         // POST: api/Users
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<User>> PostUser(UserRequest userRequest)
+        public async Task<ActionResult<UserResponse>> PostUser(UserRequest userRequest)
         {
             var user = new User
             { 
@@ -200,7 +200,7 @@ namespace API.Controllers
 
         [HttpPost("{id}/Cart")]
         [Authorize]
-        public async Task<ActionResult> AddProductToCart(long id, long productId, int quantity = 1)
+        public async Task<ActionResult<CartResponse>> AddProductToCart(long id, long productId, int quantity = 1)
         {
             var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -274,7 +274,7 @@ namespace API.Controllers
 
         [HttpDelete("{id}/Cart")]
         [Authorize]
-        public async Task<ActionResult> RemoveProductFromCart(long id, long productId, int quantity = 1)
+        public async Task<IActionResult> RemoveProductFromCart(long id, long productId, int quantity = 1)
         {
             var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
@@ -325,7 +325,7 @@ namespace API.Controllers
 
         [HttpPost("{id}/Cart/Pay")]
         [Authorize]
-        public async Task<ActionResult> PayCart(long id)
+        public async Task<IActionResult> PayCart(long id)
         {
             var userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 

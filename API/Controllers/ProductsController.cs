@@ -143,7 +143,7 @@ namespace API.Controllers
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
         [Authorize]
-        public async Task<ActionResult<Product>> PostProduct(ProductRequest productRequest)
+        public async Task<ActionResult<ProductResponse>> PostProduct(ProductRequest productRequest)
         {
             var userRole = HttpContext.User.FindFirst(ClaimTypes.Role)?.Value;
 
